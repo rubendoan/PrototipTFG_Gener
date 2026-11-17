@@ -73,3 +73,7 @@ Security scans will target our own laboratory.
 
 The /health response confirms that the application responds;
 it does not demonstrate that it is secure.
+
+## Documented tests
+
+- [Test 01: X-Content-Type-Options header (in Catalan)](docs\prova-01-capçalera-nosniff.md)

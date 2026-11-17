@@ -74,3 +74,7 @@ Les anàlisis es faran sobre el laboratori propi.
 
 La resposta de /health comprova que l’aplicació respon;
 no demostra que sigui segura.
+
+## Proves documentades
+
+- [Prova 01: capçalera X-Content-Type-Options](docs\prova-01-capçalera-nosniff.md)
