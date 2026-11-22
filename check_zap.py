@@ -1,6 +1,7 @@
 import json
 import os
 import argparse
+import time
 from pathlib import Path
 
 from datetime import datetime
@@ -15,6 +16,7 @@ parser = argparse.ArgumentParser(
     allow_abbrev=False,
 )
 
+#Posem com a obligatori l'argument --target que indica la URL del laboratori a examinar.
 parser.add_argument(
     "--target",
     required=True,
@@ -27,9 +29,9 @@ args = parser.parse_args()
 # Eliminem la barra final si hi és per acceptar les dues formes de la URL.
 target_url = args.target.removesuffix("/")
 
-# Llista explícita dels objectius permesos.
+# Llista de les adreçes que podem examinar
 allowed_targets = {
-    "http://127.0.0.1:8000",
+    "http://127.0.0.1:8000",  #Actualment això ens permet mantindre el control sobre quines adreçes podem examina.
 }
 
 # Comprovem l'objectiu abans de fer cap petició.
@@ -72,11 +74,109 @@ with requests.Session() as session:
     print("Versió de ZAP:", data["version"])
     print()
 
+    #Configurem el ZAP (amb la seva adreça i port) com a proxy per a les peticions HTTP i HTTPS.
+    proxies = {
+        "http": "http://127.0.0.1:8080",
+        "https": "http://127.0.0.1:8080"
+    }
+
+    #Definim els endpoints de la nostra API que volem examinar amb ZAP.
+    endpoints = [
+        "/health",
+        "/health/missing-header"
+    ]
+
+    incidencies = []  # Llista per guardar incidències trobades durant l'escaneig.
+
+    for endpoint in endpoints:
+        url = target_url + endpoint
+        print("Escanejant:", url)
+
+        try:
+             lab_response = session.get(
+                        url,
+                        proxies=proxies,
+                        timeout=10,
+                        allow_redirects=False
+                    )
+        except requests.RequestException as e:
+            #Si entrem aqui és que no hem pogut realitzar la petició a l'endpoint, per tant ho guardem com a incidència
+            incidencies.append({
+                "url": url,
+                "tipus": "Error petició",
+                "detalls": str(e)
+            })
+
+            print(f"AVÍS: No s'ha pogut completar la petició a {url}.")
+            print("Continuem amb el següent endpoint.")
+            print()
+
+            continue
+
+        if lab_response.status_code != 200:
+            incidencies.append({
+                "url": url,
+                "tipus": "Resposta inesperada",
+                "detalls": f"Estat HTTP: {lab_response.status_code}"
+            })
+
+            print(
+                f"AVÍS: {url} ha retornat HTTP "
+                f"{lab_response.status_code}; esperàvem HTTP 200."
+            )
+
+        else:
+            print("El laboratori ha retornat HTTP 200 correctament.")
+
+        print()
+
+    max_wait_seconds = 120
+    deadline = time.monotonic() + max_wait_seconds
+
+    print("Esperant que ZAP acabi l'anàlisi passiva...")
+
+    while True:
+        remaining_seconds = deadline - time.monotonic()
+
+        if remaining_seconds <= 0:
+            raise RuntimeError(
+                "S'ha superat el temps màxim d'espera de ZAP. "
+                "Anàlisi no completada."
+            )
+
+        pending_response = session.get(
+            "http://127.0.0.1:8080/JSON/pscan/view/recordsToScan/",
+            headers={"X-ZAP-API-Key": api_key},
+            timeout=min(10, remaining_seconds),
+        )
+
+        pending_response.raise_for_status()
+        pending_records = int(pending_response.json()["recordsToScan"])
+
+        print("Registres pendents d'analitzar:", pending_records)
+
+        remaining_seconds = deadline - time.monotonic()
+
+        if remaining_seconds <= 0:
+            raise RuntimeError(
+                "S'ha superat el temps màxim d'espera de ZAP. "
+                "Anàlisi no completada."
+            )
+
+        if pending_records == 0:
+            break
+
+        time.sleep(min(1, remaining_seconds))
+
+    print("ZAP ha acabat de processar el trànsit.")
+    print()
+           
+
     #Demana a ZAP les alertes generades per l'escaneig de la nostra API i les guarda en alertes_response.
     alerts_response = session.get(
         "http://127.0.0.1:8080/JSON/core/view/alerts/", #Direcció de l'API de ZAP per recuperar les alertes.
         headers={"X-ZAP-API-Key": api_key}, #Clau d'API per identificar-me amb ZAP.
-        params={"baseurl": "target_url"}, #Determinem de quin URL volem les alertes(la nostre API)
+        params={"baseurl": target_url}, #Determinem de quin URL volem les alertes(la nostre API)
         timeout=10,
     )
 
@@ -123,8 +223,18 @@ date_text = now.strftime("%H:%M %d-%m-%Y")#obte data i hora actual i la posa en 
 # Creem la data com a primer camp i mantenim les dades de ZAP.
 data = {
     "consulta realitzada el dia": date_text,
-    **alerts_response.json(), #dades recuperades de ZAP (alertes, etc.)
+    "objectiu": target_url,
+    "tots els endpoints han respost HTTP 200": len(incidencies) == 0,
+    "incidencies": incidencies,
+    **alerts_response.json(),
 }
+
+if incidencies:
+    print(
+        f"AVÍS: Execució amb {len(incidencies)} incidències. "
+        "Reviseu-les al JSON."
+    )
+
  #convertim el diccionari a JSON amb indentació de 4 espais
 json_text = json.dumps(data,ensure_ascii=False, indent=4) #ensure_ascii es pq no peti amb els accents
 output_file.write_text(json_text,encoding="utf-8") #Escriu les dades al arxiu, encoding li diu com ha de passar el text a bytes
