@@ -74,6 +74,24 @@ with requests.Session() as session:
     print("Versió de ZAP:", data["version"])
     print()
 
+    print("Creant una nova sessió a ZAP...")
+
+    new_session_response = session.get(
+        "http://127.0.0.1:8080/JSON/core/action/newSession/",
+        headers={"X-ZAP-API-Key": api_key},
+        params={"name": "", "overwrite": "false"},
+        timeout=30,
+    )
+
+    new_session_response.raise_for_status()
+    new_session_data = new_session_response.json()
+
+    if new_session_data.get("Result") != "OK":
+        raise RuntimeError("No s'ha pogut crear una nova sessió a ZAP.")
+
+    print("Nova sessió de ZAP creada correctament.")
+    print()
+
     #Configurem el ZAP (amb la seva adreça i port) com a proxy per a les peticions HTTP i HTTPS.
     proxies = {
         "http": "http://127.0.0.1:8080",
@@ -93,12 +111,12 @@ with requests.Session() as session:
         print("Escanejant:", url)
 
         try:
-             lab_response = session.get(
-                        url,
-                        proxies=proxies,
-                        timeout=10,
-                        allow_redirects=False
-                    )
+            lab_response = session.get(
+                url,
+                proxies=proxies,
+                timeout=10,
+                allow_redirects=False
+            )
         except requests.RequestException as e:
             #Si entrem aqui és que no hem pogut realitzar la petició a l'endpoint, per tant ho guardem com a incidència
             incidencies.append({
