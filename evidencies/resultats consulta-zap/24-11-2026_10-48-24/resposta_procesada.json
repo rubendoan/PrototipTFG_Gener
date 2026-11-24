@@ -1,0 +1,9 @@
+{
+    "id_execucio": "24-11-2026_10-48-24",
+    "inici": "24-11-2026 10:48:24",
+    "fi": "24-11-2026 10:48:29",
+    "durada_segons": 5.18,
+    "objectiu": "http://127.0.0.1:8000",
+    "tots els endpoints han respost HTTP 200": true,
+    "incidencies": []
+}

@@ -1,0 +1,31 @@
+{
+    "id_execucio": "24-11-2026_11-27-40",
+    "inici": "24-11-2026 11:27:40",
+    "fi": "24-11-2026 11:27:47",
+    "durada_segons": 6.8,
+    "objectiu": "http://127.0.0.1:8000",
+    "estat": "incompleta",
+    "error": null,
+    "configuracio": {
+        "endpoints": [
+            "/health",
+            "/health/missing-header"
+        ],
+        "temps_maxim_espera_segons": 120
+    },
+    "endpoints_amb_http_200": 0,
+    "tots els endpoints han respost HTTP 200": false,
+    "incidencies": [
+        {
+            "url": "http://127.0.0.1:8000/health",
+            "tipus": "Resposta inesperada",
+            "detalls": "Estat HTTP: 502"
+        },
+        {
+            "url": "http://127.0.0.1:8000/health/missing-header",
+            "tipus": "Resposta inesperada",
+            "detalls": "Estat HTTP: 502"
+        }
+    ],
+    "resposta_zap_disponible": true
+}

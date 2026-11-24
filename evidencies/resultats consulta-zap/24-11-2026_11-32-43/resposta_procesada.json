@@ -1,0 +1,20 @@
+{
+    "id_execucio": "24-11-2026_11-32-43",
+    "inici": "24-11-2026 11:32:43",
+    "fi": "24-11-2026 11:32:47",
+    "durada_segons": 4.08,
+    "objectiu": "http://127.0.0.1:8000",
+    "estat": "incompleta",
+    "error": "S'ha superat el temps màxim d'espera de ZAP. Anàlisi no completada.",
+    "configuracio": {
+        "endpoints": [
+            "/health",
+            "/health/missing-header"
+        ],
+        "temps_maxim_espera_segons": 0
+    },
+    "endpoints_amb_http_200": 2,
+    "tots els endpoints han respost HTTP 200": true,
+    "incidencies": [],
+    "resposta_zap_disponible": false
+}

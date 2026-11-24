@@ -1,0 +1,20 @@
+{
+    "id_execucio": "24-11-2026_11-18-51",
+    "inici": "24-11-2026 11:18:51",
+    "fi": "24-11-2026 11:18:55",
+    "durada_segons": 3.1,
+    "objectiu": "http://127.0.0.1:8000",
+    "estat": "interrompuda",
+    "error": "Execució interrompuda per l'usuari amb Ctrl+C.",
+    "configuracio": {
+        "endpoints": [
+            "/health",
+            "/health/missing-header"
+        ],
+        "temps_maxim_espera_segons": 120
+    },
+    "endpoints_amb_http_200": 2,
+    "tots els endpoints han respost HTTP 200": true,
+    "incidencies": [],
+    "resposta_zap_disponible": false
+}

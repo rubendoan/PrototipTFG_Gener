@@ -1,0 +1,20 @@
+{
+    "id_execucio": "24-11-2026_11-16-09",
+    "inici": "24-11-2026 11:16:09",
+    "fi": "24-11-2026 11:16:11",
+    "durada_segons": 2.04,
+    "objectiu": "http://127.0.0.1:8000",
+    "estat": "fallida",
+    "error": "Error de comunicació amb ZAP: HTTPConnectionPool(host='127.0.0.1', port=8080): Max retries exceeded with url: /JSON/core/view/version/ (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=8080): Failed to establish a new connection: [WinError 10061] No se puede establecer una conexión ya que el equipo de destino denegó expresamente dicha conexión\"))",
+    "configuracio": {
+        "endpoints": [
+            "/health",
+            "/health/missing-header"
+        ],
+        "temps_maxim_espera_segons": 120
+    },
+    "endpoints_amb_http_200": 0,
+    "tots els endpoints han respost HTTP 200": false,
+    "incidencies": [],
+    "resposta_zap_disponible": false
+}
