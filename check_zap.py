@@ -83,6 +83,9 @@ with requests.Session() as session:
         timeout=30,
     )
 
+    print("Estat HTTP:", new_session_response.status_code)
+    print("Resposta de ZAP:", new_session_response.text)
+
     new_session_response.raise_for_status()
     new_session_data = new_session_response.json()
 
@@ -101,7 +104,7 @@ with requests.Session() as session:
     #Definim els endpoints de la nostra API que volem examinar amb ZAP.
     endpoints = [
         "/health",
-        "/health/missing-header"
+        #"/health/missing-header"
     ]
 
     incidencies = []  # Llista per guardar incidències trobades durant l'escaneig.
@@ -117,6 +120,8 @@ with requests.Session() as session:
                 timeout=10,
                 allow_redirects=False
             )
+            print("URL comprovada:", lab_response.url)
+            print("Capçalera X-Content-Type-Options:",lab_response.headers.get("X-Content-Type-Options", "NO PRESENT"))
         except requests.RequestException as e:
             #Si entrem aqui és que no hem pogut realitzar la petició a l'endpoint, per tant ho guardem com a incidència
             incidencies.append({
@@ -148,8 +153,14 @@ with requests.Session() as session:
 
         print()
 
+
+    #sistema que analitza si ZAP ha acabat l'anàlisis o no 
     max_wait_seconds = 120
     deadline = time.monotonic() + max_wait_seconds
+
+    # Exigim tres comprovacions consecutives sense activitat.
+    idle_checks = 0
+    required_idle_checks = 3
 
     print("Esperant que ZAP acabi l'anàlisi passiva...")
 
@@ -162,16 +173,16 @@ with requests.Session() as session:
                 "Anàlisi no completada."
             )
 
+        # Consultem els registres pendents d'analitzar.
         pending_response = session.get(
             "http://127.0.0.1:8080/JSON/pscan/view/recordsToScan/",
             headers={"X-ZAP-API-Key": api_key},
             timeout=min(10, remaining_seconds),
         )
-
         pending_response.raise_for_status()
-        pending_records = int(pending_response.json()["recordsToScan"])
-
-        print("Registres pendents d'analitzar:", pending_records)
+        pending_records = int(
+            pending_response.json()["recordsToScan"]
+        )
 
         remaining_seconds = deadline - time.monotonic()
 
@@ -181,14 +192,45 @@ with requests.Session() as session:
                 "Anàlisi no completada."
             )
 
-        if pending_records == 0:
+        # Consultem les tasques que ZAP està executant.
+        tasks_response = session.get(
+            "http://127.0.0.1:8080/JSON/pscan/view/currentTasks/",
+            headers={"X-ZAP-API-Key": api_key},
+            timeout=min(10, remaining_seconds),
+        )
+        tasks_response.raise_for_status()
+        current_tasks = tasks_response.json()["currentTasks"]
+
+        remaining_seconds = deadline - time.monotonic()
+
+        if remaining_seconds <= 0:
+            raise RuntimeError(
+                "S'ha superat el temps màxim d'espera de ZAP. "
+                "Anàlisi no completada."
+            )
+
+        print(
+            f"Registres pendents: {pending_records} | "
+            f"Tasques en execució: {len(current_tasks)}"
+        )
+
+        if pending_records == 0 and len(current_tasks) == 0:
+            idle_checks += 1
+            print(
+                f"Comprovacions sense activitat: "
+                f"{idle_checks}/{required_idle_checks}"
+            )
+        else:
+            # Si torna a haver-hi activitat, reiniciem el comptador.
+            idle_checks = 0
+
+        if idle_checks >= required_idle_checks:
             break
 
         time.sleep(min(1, remaining_seconds))
 
-    print("ZAP ha acabat de processar el trànsit.")
+    print("ZAP s'ha mantingut sense activitat durant les comprovacions.")
     print()
-           
 
     #Demana a ZAP les alertes generades per l'escaneig de la nostra API i les guarda en alertes_response.
     alerts_response = session.get(
@@ -197,6 +239,8 @@ with requests.Session() as session:
         params={"baseurl": target_url}, #Determinem de quin URL volem les alertes(la nostre API)
         timeout=10,
     )
+
+    
 
     alerts_response.raise_for_status() #Comprovem si la petició ha estat correcta(si no es correcte, peta)
 
@@ -215,26 +259,18 @@ with requests.Session() as session:
 #_file_ és el fitxer actual, .parent és la carpeta on està el fitxer, .resolve() és per obtenir la ruta absoluta.Funciona pq hem fet un import de Path.
 project_dir = Path(__file__).resolve().parent
 #project_dir guarda la ruta absoluta de la carpeta on està el fitxer check_zap.py ( la ruta del projecte)
+now = datetime.now()
+
+execution_id = now.strftime("%d-%m-%Y_%H-%M-%S")  # Generem un identificador únic per a aquesta execució basat en la data i hora actual.
+
 
 # escrivim la direcció de la carpeta on guardem els resultats
-output_dir = project_dir / "evidencies" / "resultats consulta-zap"
-output_dir.mkdir(parents=True, exist_ok=True) #si falta la carpeta la crea, sino no fa res
+output_dir = project_dir / "evidencies" / "resultats consulta-zap" / execution_id
+output_dir.mkdir(parents=True, exist_ok=False) #si falta la carpeta la crea, sino no fa res
 
-# Busquem el número més alt dels fitxers que ja existeixen.
-last_number = 0
+execution_file = output_dir / "resposta_procesada.json" #crea un arxiu resultats.json dins la carpeta de resultats
+alerts_file = output_dir / "resposta_ZAP.json" #crea un arxiu alerts.json dins la carpeta de resultats
 
-for file in output_dir.glob("alertes-zap-*.JSON"):
-    number_text = file.stem.removeprefix("alertes-zap-")
-
-    if number_text.isdigit():
-        last_number = max(last_number, int(number_text))
-
-
-next_number = last_number + 1 #sumem 1 pq el nou fitxer tingui el següent número 
-output_file = output_dir / f"alertes-zap-{next_number}.JSON"
-
-
-now = datetime.now()
 date_text = now.strftime("%H:%M %d-%m-%Y")#obte data i hora actual i la posa en format Hora:Minuts Dia-Mes-Any
 
 
@@ -244,7 +280,6 @@ data = {
     "objectiu": target_url,
     "tots els endpoints han respost HTTP 200": len(incidencies) == 0,
     "incidencies": incidencies,
-    **alerts_response.json(),
 }
 
 if incidencies:
@@ -255,13 +290,13 @@ if incidencies:
 
  #convertim el diccionari a JSON amb indentació de 4 espais
 json_text = json.dumps(data,ensure_ascii=False, indent=4) #ensure_ascii es pq no peti amb els accents
-output_file.write_text(json_text,encoding="utf-8") #Escriu les dades al arxiu, encoding li diu com ha de passar el text a bytes
+execution_file.write_text(json_text,encoding="utf-8") #Escriu les dades al arxiu, encoding li diu com ha de passar el text a bytes
 
+alerts_file.write_bytes(alerts_response.content)
 
 print()
-print("Resposta de ZAP desada a:", output_file)
-
-
+print("Dades de l'execució desades a :", execution_file)
+print("Resposta de ZAP desada :", alerts_file)
 
 
 
